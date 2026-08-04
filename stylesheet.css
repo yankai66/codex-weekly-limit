@@ -1,0 +1,15 @@
+.codex-quota-panel-box {
+  spacing: 5px;
+}
+
+.codex-quota-panel-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.codex-quota-warning {
+  color: #f6d32d;
+}
+
+.codex-quota-critical {
+  color: #ed333b;
+}

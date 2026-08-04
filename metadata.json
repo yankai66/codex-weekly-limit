@@ -1,0 +1,7 @@
+{
+  "uuid": "codex-quota@local",
+  "name": "Codex Quota",
+  "description": "Show Codex rate-limit capacity and reset times in the GNOME top bar.",
+  "version": 1,
+  "shell-version": ["46"]
+}
