@@ -1,7 +1,8 @@
 {
   "uuid": "codex-quota@local",
   "name": "Codex Quota",
-  "description": "Show Codex rate-limit capacity and reset times in the GNOME top bar.",
-  "version": 1,
-  "shell-version": ["46"]
+  "description": "Show Codex rate-limit capacity and DeepSeek usage in the GNOME top bar.",
+  "version": 2,
+  "shell-version": ["46"],
+  "settings-schema": "org.gnome.shell.extensions.codex-quota"
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.codex-quota" path="/org/gnome/shell/extensions/codex-quota/">
+    <key name="deepseek-token" type="s">
+      <default>''</default>
+      <summary>DeepSeek platform user token</summary>
+      <description>登录 platform.deepseek.com 后从浏览器 localStorage 的 userToken 字段复制的会话 token。</description>
+    </key>
+  </schema>
+</schemalist>
