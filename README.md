@@ -48,6 +48,9 @@ chmod +x install.sh uninstall.sh
 扩展也会自动尝试从 Chrome 的 localStorage 读取 token；若读取不到，
 请手动粘贴。token 失效后顶栏显示红色 `!`，需重新获取。
 
+Codex 和 DeepSeek 的自动刷新间隔（默认 60 秒）可以在扩展设置中调整
+（DeepSeek 标签右键 → DeepSeek 设置 → 刷新间隔），最小 10 秒。
+
 ## 测试
 
 ```bash

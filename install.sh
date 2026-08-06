@@ -19,6 +19,7 @@ cp "$script_dir/quota.js" "$install_dir/quota.js"
 cp "$script_dir/stylesheet.css" "$install_dir/stylesheet.css"
 cp "$script_dir/deepseek.js" "$install_dir/deepseek.js"
 cp "$script_dir/prefs.js" "$install_dir/prefs.js"
+rm -rf "$install_dir/schemas"
 cp -r "$script_dir/schemas" "$install_dir/schemas"
 if command -v glib-compile-schemas >/dev/null 2>&1; then
     glib-compile-schemas "$install_dir/schemas"

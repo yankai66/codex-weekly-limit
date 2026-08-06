@@ -31,16 +31,17 @@ import {
 } from './deepseek.js';
 
 const DASHBOARD_URL = 'https://chatgpt.com/codex/settings/usage';
-const REFRESH_SECONDS = 60;
 const COUNTDOWN_SECONDS = 30;
 const RECONNECT_SECONDS = 15;
+const MIN_REFRESH_SECONDS = 10;
 
 const CodexQuotaIndicator = GObject.registerClass(
 class CodexQuotaIndicator extends PanelMenu.Button {
-    _init() {
+    _init(settings) {
         super._init(0.0, 'Codex Quota');
 
         this._enabled = true;
+        this._settings = settings;
         this._requestId = 10;
         this._process = null;
         this._stdin = null;
@@ -52,6 +53,7 @@ class CodexQuotaIndicator extends PanelMenu.Button {
         this._refreshSource = 0;
         this._countdownSource = 0;
         this._reconnectSource = 0;
+        this._settingsChangedId = 0;
 
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box codex-quota-panel-box'});
         const iconPath = GLib.build_filenamev([
@@ -86,18 +88,32 @@ class CodexQuotaIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(dashboardItem);
 
         this._startServer();
-        this._refreshSource = GLib.timeout_add_seconds(
-            GLib.PRIORITY_DEFAULT,
-            REFRESH_SECONDS,
-            () => {
-                this.refresh();
-                return GLib.SOURCE_CONTINUE;
-            });
+        this._scheduleRefresh();
         this._countdownSource = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
             COUNTDOWN_SECONDS,
             () => {
                 this._render();
+                return GLib.SOURCE_CONTINUE;
+            });
+        this._settingsChangedId = this._settings.connect(
+            'changed::codex-refresh-seconds',
+            () => this._scheduleRefresh());
+    }
+
+    _getRefreshSeconds() {
+        const value = this._settings.get_int('codex-refresh-seconds');
+        return Math.max(MIN_REFRESH_SECONDS, value);
+    }
+
+    _scheduleRefresh() {
+        if (this._refreshSource)
+            GLib.source_remove(this._refreshSource);
+        this._refreshSource = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            this._getRefreshSeconds(),
+            () => {
+                this.refresh();
                 return GLib.SOURCE_CONTINUE;
             });
     }
@@ -353,6 +369,10 @@ class CodexQuotaIndicator extends PanelMenu.Button {
 
     destroy() {
         this._enabled = false;
+        if (this._settingsChangedId) {
+            this._settings.disconnect(this._settingsChangedId);
+            this._settingsChangedId = 0;
+        }
         for (const source of [this._refreshSource, this._countdownSource, this._reconnectSource]) {
             if (source)
                 GLib.source_remove(source);
@@ -376,7 +396,6 @@ class CodexQuotaIndicator extends PanelMenu.Button {
     }
 });
 
-const DEEPSEEK_REFRESH_SECONDS = 60;
 const DEEPSEEK_USAGE_URL = 'https://platform.deepseek.com/usage';
 
 const DeepSeekIndicator = GObject.registerClass(
@@ -392,6 +411,7 @@ class DeepSeekIndicator extends PanelMenu.Button {
         this._lastUpdatedAt = null;
         this._tokenInvalid = false;
         this._refreshSource = 0;
+        this._settingsChangedId = 0;
 
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box codex-quota-panel-box'});
         const iconPath = GLib.build_filenamev([
@@ -432,9 +452,23 @@ class DeepSeekIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(prefsItem);
 
         this.refresh();
+        this._scheduleRefresh();
+        this._settingsChangedId = this._settings.connect(
+            'changed::deepseek-refresh-seconds',
+            () => this._scheduleRefresh());
+    }
+
+    _getRefreshSeconds() {
+        const value = this._settings.get_int('deepseek-refresh-seconds');
+        return Math.max(MIN_REFRESH_SECONDS, value);
+    }
+
+    _scheduleRefresh() {
+        if (this._refreshSource)
+            GLib.source_remove(this._refreshSource);
         this._refreshSource = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
-            DEEPSEEK_REFRESH_SECONDS,
+            this._getRefreshSeconds(),
             () => {
                 this.refresh();
                 return GLib.SOURCE_CONTINUE;
@@ -522,6 +556,10 @@ class DeepSeekIndicator extends PanelMenu.Button {
 
     destroy() {
         this._enabled = false;
+        if (this._settingsChangedId) {
+            this._settings.disconnect(this._settingsChangedId);
+            this._settingsChangedId = 0;
+        }
         if (this._refreshSource)
             GLib.source_remove(this._refreshSource);
         this._refreshSource = 0;
@@ -532,7 +570,7 @@ class DeepSeekIndicator extends PanelMenu.Button {
 export default class CodexQuotaExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
-        this._indicator = new CodexQuotaIndicator();
+        this._indicator = new CodexQuotaIndicator(this._settings);
         Main.panel.addToStatusArea(this.uuid, this._indicator, 1, 'left');
         this._deepseekIndicator = new DeepSeekIndicator(this._settings);
         Main.panel.addToStatusArea(`${this.uuid}-deepseek`, this._deepseekIndicator, 2, 'left');

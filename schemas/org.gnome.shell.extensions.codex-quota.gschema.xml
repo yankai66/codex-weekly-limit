@@ -6,5 +6,15 @@
       <summary>DeepSeek platform user token</summary>
       <description>登录 platform.deepseek.com 后从浏览器 localStorage 的 userToken 字段复制的会话 token。</description>
     </key>
+    <key name="codex-refresh-seconds" type="i">
+      <default>60</default>
+      <summary>Codex 刷新间隔（秒）</summary>
+      <description>Codex 额度自动刷新的时间间隔，最小 10 秒。</description>
+    </key>
+    <key name="deepseek-refresh-seconds" type="i">
+      <default>60</default>
+      <summary>DeepSeek 刷新间隔（秒）</summary>
+      <description>DeepSeek 用量自动刷新的时间间隔，最小 10 秒。</description>
+    </key>
   </schema>
 </schemalist>
