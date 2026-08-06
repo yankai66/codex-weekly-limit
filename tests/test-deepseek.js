@@ -1,5 +1,8 @@
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import {
     buildUsageRange,
+    extractUserTokenFromChrome,
     formatCost,
     formatDeepseekLabel,
     formatTokenCount,
@@ -109,5 +112,28 @@ assertEqual(
     formatDeepseekLabel(null, null),
     'DeepSeek --',
     'formats missing label');
+
+// ---- extractUserTokenFromChrome ----
+const tmp = GLib.get_tmp_dir();
+const profile = `${tmp}/ds-chrome-test-${Date.now()}`;
+const leveldbDir = `${profile}/Default/Local Storage/leveldb`;
+GLib.mkdir_with_parents(leveldbDir, 0o755);
+const marker = '_https://platform.deepseek.com\x00\x01userToken\x01\x98e\x00\x00';
+const value = '{"value":"test-token-abc123","__version":"0"}';
+Gio.File.new_for_path(`${leveldbDir}/000001.log`).replace_contents(
+    `\x01,${marker}${value}`,
+    null, false, Gio.FileCreateFlags.NONE, null);
+
+const token = extractUserTokenFromChrome(profile);
+assertEqual(token, 'test-token-abc123', 'extracts token from leveldb sample');
+
+const missing = extractUserTokenFromChrome('/nonexistent-path-xyz');
+assertEqual(missing, null, 'returns null when root missing');
+
+GLib.remove(profile + '/Default/Local Storage/leveldb/000001.log');
+GLib.rmdir(profile + '/Default/Local Storage/leveldb');
+GLib.rmdir(profile + '/Default/Local Storage');
+GLib.rmdir(profile + '/Default');
+GLib.rmdir(profile);
 
 print('deepseek tests: ok');

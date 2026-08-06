@@ -1,4 +1,5 @@
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 
 const CURRENCY_FALLBACK = 'CNY';
 
@@ -129,4 +130,83 @@ function numberFromString(value) {
         return null;
     const num = Number.parseFloat(value);
     return Number.isFinite(num) ? num : null;
+}
+
+const TOKEN_MARKER = '_https://platform.deepseek.com\x00\x01userToken';
+const TOKEN_PATTERN = /\{"value":"([^"]+)"\s*,\s*"__version":"0"\}/;
+
+export function extractUserTokenFromChrome(root = null) {
+    const chromeRoot = root ?? `${GLib.get_home_dir()}/.config/google-chrome`;
+    const rootFile = Gio.File.new_for_path(chromeRoot);
+    if (!rootFile.query_exists(null))
+        return null;
+
+    try {
+        const enumerator = rootFile.enumerate_children(
+            'standard::name,standard::type',
+            Gio.FileQueryInfoFlags.NONE,
+            null);
+        let info;
+        while ((info = enumerator.next_file(null)) !== null) {
+            if (info.get_file_type() !== Gio.FileType.DIRECTORY)
+                continue;
+            const lsDir = `${chromeRoot}/${info.get_name()}/Local Storage/leveldb`;
+            const token = scanLevelDbDir(lsDir);
+            if (token) {
+                enumerator.close(null);
+                return token;
+            }
+        }
+        enumerator.close(null);
+    } catch (error) {
+        console.debug(`DeepSeek: chrome scan failed: ${error.message}`);
+    }
+    return null;
+}
+
+function scanLevelDbDir(leveldbDir) {
+    const dir = Gio.File.new_for_path(leveldbDir);
+    if (!dir.query_exists(null))
+        return null;
+
+    try {
+        const enumerator = dir.enumerate_children(
+            'standard::name,standard::type',
+            Gio.FileQueryInfoFlags.NONE,
+            null);
+        let info;
+        while ((info = enumerator.next_file(null)) !== null) {
+            if (info.get_file_type() !== Gio.FileType.REGULAR)
+                continue;
+            const name = info.get_name();
+            if (!name.endsWith('.ldb') && !name.endsWith('.log'))
+                continue;
+            const token = scanLevelDbFile(`${leveldbDir}/${name}`);
+            if (token) {
+                enumerator.close(null);
+                return token;
+            }
+        }
+        enumerator.close(null);
+    } catch (error) {
+        console.debug(`DeepSeek: leveldb scan failed: ${error.message}`);
+    }
+    return null;
+}
+
+function scanLevelDbFile(path) {
+    try {
+        const file = Gio.File.new_for_path(path);
+        const [, contents] = file.load_contents(null);
+        const text = new TextDecoder().decode(contents);
+        const index = text.indexOf(TOKEN_MARKER);
+        if (index < 0)
+            return null;
+        const window = text.slice(index, index + 4000);
+        const match = TOKEN_PATTERN.exec(window);
+        return match ? match[1] : null;
+    } catch (error) {
+        console.debug(`DeepSeek: leveldb file read failed: ${error.message}`);
+        return null;
+    }
 }
