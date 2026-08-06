@@ -1,5 +1,6 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import Soup from 'gi://Soup';
 
 const CURRENCY_FALLBACK = 'CNY';
 
@@ -209,4 +210,98 @@ function scanLevelDbFile(path) {
         console.debug(`DeepSeek: leveldb file read failed: ${error.message}`);
         return null;
     }
+}
+
+const API_BASE = 'https://platform.deepseek.com';
+const CLIENT_HEADERS = {
+    'x-client-bundle-id': 'com.deepseek.chat',
+    'x-client-platform': 'web',
+    'x-client-version': '1.0.0',
+    'x-client-locale': 'zh-CN',
+    'x-client-timezone-offset': '480',
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+    'Referer': 'https://platform.deepseek.com/usage',
+    'Origin': 'https://platform.deepseek.com',
+};
+
+export class TokenInvalidError extends Error {
+    constructor(message = 'DeepSeek token 已失效') {
+        super(message);
+        this.name = 'TokenInvalidError';
+    }
+}
+
+export function createSession() {
+    const session = new Soup.Session();
+    session.timeout = 15;
+    return session;
+}
+
+export function parseEnvelope(text, statusCode) {
+    if (statusCode === 401 || statusCode === 403)
+        throw new TokenInvalidError();
+
+    let envelope;
+    try {
+        envelope = JSON.parse(text);
+    } catch (error) {
+        throw new Error(`DeepSeek 响应解析失败: ${error.message}`);
+    }
+
+    if (statusCode !== 200)
+        throw new Error(`DeepSeek HTTP ${statusCode}`);
+
+    if (envelope?.data?.biz_code === 1) {
+        const msg = envelope.data.biz_msg ?? '';
+        if (/INVALID_TOKEN|TOKEN/i.test(msg))
+            throw new TokenInvalidError();
+        throw new Error(`DeepSeek 接口错误: ${msg}`);
+    }
+    return envelope?.data?.biz_data ?? null;
+}
+
+export function fetchJson(session, url, token, query = {}) {
+    return new Promise((resolve, reject) => {
+        const target = `${url}${queryToString(query)}`;
+        const message = Soup.Message.new('GET', target);
+        for (const [name, value] of Object.entries(CLIENT_HEADERS))
+            message.request_headers.append(name, value);
+        message.request_headers.append('Authorization', `Bearer ${token}`);
+
+        session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null, (sess, res) => {
+            let text;
+            try {
+                const bytes = sess.send_and_read_finish(res);
+                text = String.fromCharCode(...bytes.toArray());
+            } catch (error) {
+                reject(new Error(`DeepSeek 网络错误: ${error.message}`));
+                return;
+            }
+            try {
+                resolve(parseEnvelope(text, message.status_code));
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+export async function fetchDeepseekData(session, token, range, baseUrl = API_BASE) {
+    const query = {start: range.startSec, end: range.endSec, tz: 0};
+    const [summary, usage, cost] = await Promise.all([
+        fetchJson(session, `${baseUrl}/api/v0/users/get_user_summary`, token, {}),
+        fetchJson(session, `${baseUrl}/api/v0/usage/by_api_key/amount`, token, query),
+        fetchJson(session, `${baseUrl}/api/v0/usage/by_api_key/cost`, token, query),
+    ]);
+    return {summary, usage, cost};
+}
+
+export function queryToString(query) {
+    const keys = Object.keys(query);
+    if (keys.length === 0)
+        return '';
+    const params = keys
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`)
+        .join('&');
+    return `?${params}`;
 }
