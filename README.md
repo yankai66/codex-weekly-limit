@@ -26,6 +26,24 @@ chmod +x install.sh uninstall.sh
 点击顶栏的 `Codex 75%` 可以查看所有额度窗口、重置倒计时，并手动刷新。
 顶栏百分比取所有返回窗口中最紧张的一个。
 
+## DeepSeek 用量
+
+顶栏右侧新增 DeepSeek 标签，展示余额、今日 token 用量、今日费用、今日调用次数。
+
+数据来自 platform.deepseek.com 的内部接口，使用网页登录态 token
+（`userToken`）鉴权，不会消耗任何模型额度。
+
+获取 token：
+
+1. 用 Chrome 打开 https://platform.deepseek.com 并登录。
+2. 按 F12 打开开发者工具 → Console。
+3. 输入 `localStorage.getItem('userToken')` 回车，复制返回的 JSON 中的
+   `value` 字段（以 `ey` 开头的一长串）。
+4. 打开扩展设置（右键顶栏 DeepSeek 标签 → DeepSeek 设置），粘贴 token。
+
+扩展也会自动尝试从 Chrome 的 localStorage 读取 token；若读取不到，
+请手动粘贴。token 失效后顶栏显示 `DeepSeek !`，需重新获取。
+
 ## 测试
 
 ```bash
