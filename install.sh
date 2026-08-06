@@ -13,6 +13,7 @@ fi
 mkdir -p "$install_dir"
 cp "$script_dir/extension.js" "$install_dir/extension.js"
 cp "$script_dir/chatgpt-blossom.svg" "$install_dir/chatgpt-blossom.svg"
+cp "$script_dir/deepseek-whale.svg" "$install_dir/deepseek-whale.svg"
 cp "$script_dir/metadata.json" "$install_dir/metadata.json"
 cp "$script_dir/quota.js" "$install_dir/quota.js"
 cp "$script_dir/stylesheet.css" "$install_dir/stylesheet.css"

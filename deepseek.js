@@ -100,11 +100,11 @@ export function summarizeToday(usageBizData, costBizData) {
 export function formatTokenCount(count) {
     if (!Number.isFinite(count) || count < 0)
         return '--';
-    if (count >= 100_000_000)
-        return `${(count / 100_000_000).toFixed(1)}亿t`;
-    if (count >= 10_000)
-        return `${(count / 10_000).toFixed(1)}万t`;
-    return `${Math.round(count)}t`;
+    if (count >= 1_000_000)
+        return `${trimDecimals(count / 1_000_000)}M`;
+    if (count >= 1_000)
+        return `${trimDecimals(count / 1_000)}K`;
+    return `${Math.round(count)}`;
 }
 
 export function formatCost(cost) {
@@ -115,13 +115,12 @@ export function formatCost(cost) {
 
 export function formatDeepseekLabel(summary, today) {
     if (!summary || !today)
-        return 'DeepSeek --';
+        return '-- · -- · --';
     const balance = summary.totalBalance;
     const parts = [
         balance !== null && Number.isFinite(balance) ? `¥${balance.toFixed(1)}` : '--',
-        Number.isInteger(today.requests) ? `${today.requests}次` : '--',
-        formatTokenCount(today.tokens),
         formatCost(today.cost),
+        formatTokenCount(today.tokens),
     ];
     return parts.join(' · ');
 }
@@ -131,6 +130,11 @@ function numberFromString(value) {
         return null;
     const num = Number.parseFloat(value);
     return Number.isFinite(num) ? num : null;
+}
+
+function trimDecimals(value) {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
 const TOKEN_MARKER = '_https://platform.deepseek.com\x00\x01userToken';

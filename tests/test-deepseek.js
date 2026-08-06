@@ -94,9 +94,10 @@ assertEqual(today.usage.length, 2, 'today usage per model');
 assertEqual(today.costByModel.length, 2, 'today cost per model');
 
 // ---- format helpers ----
-assertEqual(formatTokenCount(183000), '18.3万t', 'formats wan');
-assertEqual(formatTokenCount(1200), '1200t', 'formats plain');
-assertEqual(formatTokenCount(0), '0t', 'formats zero');
+assertEqual(formatTokenCount(1830000), '1.8M', 'formats M');
+assertEqual(formatTokenCount(183000), '183K', 'formats K');
+assertEqual(formatTokenCount(1200), '1.2K', 'formats K small');
+assertEqual(formatTokenCount(0), '0', 'formats zero');
 assertEqual(formatTokenCount(null), '--', 'formats missing');
 assertEqual(formatCost(0.11), '¥0.11', 'formats cost');
 assertEqual(formatCost(null), '--', 'formats missing cost');
@@ -105,12 +106,12 @@ assertEqual(
     formatDeepseekLabel(
         {totalBalance: 95.2946},
         {requests: 52, tokens: 183000, cost: 0.11}),
-    '¥95.3 · 52次 · 18.3万t · ¥0.11',
+    '¥95.3 · ¥0.11 · 183K',
     'formats full label');
 
 assertEqual(
     formatDeepseekLabel(null, null),
-    'DeepSeek --',
+    '-- · -- · --',
     'formats missing label');
 
 // ---- extractUserTokenFromChrome ----

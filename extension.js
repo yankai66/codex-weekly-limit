@@ -394,11 +394,20 @@ class DeepSeekIndicator extends PanelMenu.Button {
         this._refreshSource = 0;
 
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box codex-quota-panel-box'});
-        this._label = new St.Label({
-            text: 'DeepSeek --',
-            y_align: Clutter.ActorAlign.CENTER,
-            style_class: 'codex-quota-panel-label',
+        const iconPath = GLib.build_filenamev([
+            Extension.lookupByURL(import.meta.url).path,
+            'deepseek-whale.svg',
+        ]);
+        this._icon = new St.Icon({
+            gicon: new Gio.FileIcon({file: Gio.File.new_for_path(iconPath)}),
+            style_class: 'system-status-icon',
         });
+        this._label = new St.Label({
+            text: '-- · -- · --',
+            y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'codex-quota-panel-label deepseek-quota-label',
+        });
+        box.add_child(this._icon);
         box.add_child(this._label);
         this.add_child(box);
 
@@ -499,16 +508,16 @@ class DeepSeekIndicator extends PanelMenu.Button {
     _setState(summary, today, message) {
         this._label.text = summary && today
             ? formatDeepseekLabel(summary, today)
-            : 'DeepSeek !';
+            : '!';
         if (message)
             this._statusItem.label.text = message;
         this._applyTokenWarning(true);
     }
 
     _applyTokenWarning(critical) {
-        this._label.remove_style_class_name('codex-quota-critical');
+        this._label.remove_style_class_name('critical');
         if (critical)
-            this._label.add_style_class_name('codex-quota-critical');
+            this._label.add_style_class_name('critical');
     }
 
     destroy() {
@@ -524,9 +533,9 @@ export default class CodexQuotaExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._indicator = new CodexQuotaIndicator();
-        Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
+        Main.panel.addToStatusArea(this.uuid, this._indicator, 1, 'left');
         this._deepseekIndicator = new DeepSeekIndicator(this._settings);
-        Main.panel.addToStatusArea(`${this.uuid}-deepseek`, this._deepseekIndicator, 1, 'right');
+        Main.panel.addToStatusArea(`${this.uuid}-deepseek`, this._deepseekIndicator, 2, 'left');
     }
 
     disable() {

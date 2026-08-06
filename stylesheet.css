@@ -17,3 +17,12 @@
 .deepseek-quota-panel-box {
   spacing: 5px;
 }
+
+.deepseek-quota-label {
+  color: #79b8ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.deepseek-quota-label.critical {
+  color: #ed333b;
+}
