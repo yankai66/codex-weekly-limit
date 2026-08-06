@@ -13,3 +13,7 @@
 .codex-quota-critical {
   color: #ed333b;
 }
+
+.deepseek-quota-panel-box {
+  spacing: 5px;
+}

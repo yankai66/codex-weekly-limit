@@ -17,6 +17,19 @@ import {
     normalizeRateLimits,
 } from './quota.js';
 
+import {
+    buildUsageRange,
+    createSession,
+    extractUserTokenFromChrome,
+    fetchDeepseekData,
+    formatCost,
+    formatDeepseekLabel,
+    formatTokenCount,
+    normalizeSummary,
+    summarizeToday,
+    TokenInvalidError,
+} from './deepseek.js';
+
 const DASHBOARD_URL = 'https://chatgpt.com/codex/settings/usage';
 const REFRESH_SECONDS = 60;
 const COUNTDOWN_SECONDS = 30;
@@ -363,14 +376,163 @@ class CodexQuotaIndicator extends PanelMenu.Button {
     }
 });
 
+const DEEPSEEK_REFRESH_SECONDS = 60;
+const DEEPSEEK_USAGE_URL = 'https://platform.deepseek.com/usage';
+
+const DeepSeekIndicator = GObject.registerClass(
+class DeepSeekIndicator extends PanelMenu.Button {
+    _init(settings) {
+        super._init(0.0, 'DeepSeek Usage');
+
+        this._enabled = true;
+        this._settings = settings;
+        this._session = createSession();
+        this._summary = null;
+        this._today = null;
+        this._lastUpdatedAt = null;
+        this._tokenInvalid = false;
+        this._refreshSource = 0;
+
+        const box = new St.BoxLayout({style_class: 'panel-status-menu-box codex-quota-panel-box'});
+        this._label = new St.Label({
+            text: 'DeepSeek --',
+            y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'codex-quota-panel-label',
+        });
+        box.add_child(this._label);
+        this.add_child(box);
+
+        this._statusItem = new PopupMenu.PopupMenuItem('正在获取 DeepSeek 数据…', {reactive: false});
+        this.menu.addMenuItem(this._statusItem);
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        const refreshItem = new PopupMenu.PopupMenuItem('立即刷新');
+        refreshItem.connect('activate', () => this.refresh());
+        this.menu.addMenuItem(refreshItem);
+
+        const usageItem = new PopupMenu.PopupMenuItem('打开 DeepSeek 用量面板');
+        usageItem.connect('activate', () => {
+            Gio.AppInfo.launch_default_for_uri(DEEPSEEK_USAGE_URL, null);
+        });
+        this.menu.addMenuItem(usageItem);
+
+        const prefsItem = new PopupMenu.PopupMenuItem('DeepSeek 设置');
+        prefsItem.connect('activate', () => {
+            Extension.lookupByURL(import.meta.url).openPreferences();
+        });
+        this.menu.addMenuItem(prefsItem);
+
+        this.refresh();
+        this._refreshSource = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            DEEPSEEK_REFRESH_SECONDS,
+            () => {
+                this.refresh();
+                return GLib.SOURCE_CONTINUE;
+            });
+    }
+
+    _getToken() {
+        const stored = this._settings.get_string('deepseek-token').trim();
+        if (stored)
+            return stored;
+        return extractUserTokenFromChrome();
+    }
+
+    refresh() {
+        if (!this._enabled)
+            return;
+        const token = this._getToken();
+        if (!token) {
+            this._setState(null, null, '未配置 DeepSeek token，请在设置中粘贴或自动读取');
+            return;
+        }
+
+        const range = buildUsageRange(1);
+        fetchDeepseekData(this._session, token, range)
+            .then(({summary, usage, cost}) => {
+                this._tokenInvalid = false;
+                this._summary = normalizeSummary(summary);
+                this._today = summarizeToday(usage, cost);
+                this._lastUpdatedAt = new Date();
+                this._render();
+            })
+            .catch((error) => {
+                if (error instanceof TokenInvalidError) {
+                    this._tokenInvalid = true;
+                    this._setState(null, null, 'DeepSeek token 已失效，请在设置中更新');
+                } else {
+                    this._setState(null, null, `DeepSeek 获取失败：${error.message}`);
+                }
+            });
+    }
+
+    _render() {
+        if (!this._summary || !this._today)
+            return;
+
+        const lines = [];
+        lines.push(`余额 ¥${this._summary.totalBalance?.toFixed(2) ?? '--'} · ` +
+            `赠送 ${this._summary.grantedBalance !== null ? `¥${this._summary.grantedBalance.toFixed(2)}` : '--'} · ` +
+            `充值 ${this._summary.toppedUpBalance !== null ? `¥${this._summary.toppedUpBalance.toFixed(2)}` : '--'} · ` +
+            `总消费 ¥${this._summary.totalCost?.toFixed(2) ?? '--'}`);
+
+        if (this._today.usage.length > 0) {
+            const modelRows = this._today.usage.map(entry => {
+                const cost = this._today.costByModel.find(c => c.model === entry.model)?.cost;
+                return `${entry.model}：${entry.requests}次 · ${formatTokenCount(entry.tokens)} · ${formatCost(cost)}`;
+            });
+            lines.push(...modelRows);
+        } else {
+            lines.push('今日暂无调用');
+        }
+
+        const updated = this._lastUpdatedAt
+            ? this._lastUpdatedAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+            : '--:--';
+        lines.push(`更新于 ${updated}`);
+        this._label.text = formatDeepseekLabel(this._summary, this._today);
+        this._applyTokenWarning(false);
+        this._statusItem.label.text = lines.join('\n');
+    }
+
+    _setState(summary, today, message) {
+        this._label.text = summary && today
+            ? formatDeepseekLabel(summary, today)
+            : 'DeepSeek !';
+        if (message)
+            this._statusItem.label.text = message;
+        this._applyTokenWarning(true);
+    }
+
+    _applyTokenWarning(critical) {
+        this._label.remove_style_class_name('codex-quota-critical');
+        if (critical)
+            this._label.add_style_class_name('codex-quota-critical');
+    }
+
+    destroy() {
+        this._enabled = false;
+        if (this._refreshSource)
+            GLib.source_remove(this._refreshSource);
+        this._refreshSource = 0;
+        super.destroy();
+    }
+});
+
 export default class CodexQuotaExtension extends Extension {
     enable() {
+        this._settings = this.getSettings();
         this._indicator = new CodexQuotaIndicator();
-        Main.panel.addToStatusArea(this.uuid, this._indicator);
+        Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
+        this._deepseekIndicator = new DeepSeekIndicator(this._settings);
+        Main.panel.addToStatusArea(`${this.uuid}-deepseek`, this._deepseekIndicator, 1, 'right');
     }
 
     disable() {
         this._indicator?.destroy();
         this._indicator = null;
+        this._deepseekIndicator?.destroy();
+        this._deepseekIndicator = null;
     }
 }
